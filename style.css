@@ -298,21 +298,21 @@ button[type="button"]:nth-child(2):active {
     padding: 30px 20px;
     max-height: 95vh;
   }
-
+  
   h2 {
     font-size: 1.5rem;
   }
-
+  
   .button-group {
     flex-direction: column;
   }
-
+  
   .copy-btn {
     position: static;
     width: 100%;
     margin-top: 10px;
   }
-
+  
   .info-content {
     font-size: 13px;
   }
