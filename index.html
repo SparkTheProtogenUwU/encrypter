@@ -10,19 +10,69 @@
 <div class="container">
 <h2>AES-GCM Encrypter</h2>
 
-<label class="label" for="password">Password</label>
-<input type="password" id="password" placeholder="Enter your password">
+<div class="info-section">
+<button class="info-toggle" onclick="toggleInfo()" aria-expanded="false" aria-controls="info-content">
+ℹ️ How to Use & Security Details
+</button>
+<div id="info-content" class="info-content" hidden>
+<h3>How to Use</h3>
+<p><strong>To Encrypt:</strong> Enter a strong password and your message, then click "Encrypt".</p>
+<p><strong>To Decrypt:</strong> Enter the same password and paste the encrypted text, then click "Decrypt".</p>
+<h3>Technical Details</h3>
+<ul>
+<li><strong>Algorithm:</strong> AES-GCM with 256-bit keys</li>
+<li><strong>Key Derivation:</strong> PBKDF2 with 100,000 iterations using SHA-256</li>
+<li><strong>IV:</strong> 12 bytes (96 bits), randomly generated for each encryption</li>
+<li><strong>Authentication Tag:</strong> 128 bits (built into AES-GCM)</li>
+<li><strong>Salt:</strong> 16 bytes, randomly generated for each encryption</li>
+<li><strong>Output Format:</strong> (Salt || IV || Ciphertext+Tag)</li>
+<li><strong>Implementation:</strong> Uses native Web Crypto API</li>
+</ul>
+<h3>Security Recommendations</h3>
+<ul>
+<li>Use a strong, unique password (minimum 12 characters recommended)</li>
+<li>Mix uppercase, lowercase, numbers, and symbols</li>
+<li>Never reuse passwords from other services</li>
+<li>If you forget your password, the data is unrecoverable</li>
+<li>This tool runs entirely in your browser - no data is sent to any server</li>
+</ul>
+</div>
+</div>
 
-<label class="label" for="input">Message</label>
-<textarea id="input" placeholder="Type your message here..."></textarea>
+<div id="alert-box" class="alert-box" role="alert" aria-live="polite" hidden></div>
+
+<fieldset>
+<legend class="sr-only">Encryption Form</legend>
+
+<label class="label" for="password">Password <span class="required">*</span></label>
+<input type="password" id="password" placeholder="Enter your password" aria-required="true" aria-describedby="password-help">
+<small id="password-help" class="helper-text">Minimum 8 characters. Longer passwords are more secure.</small>
+
+<label class="label" for="input">Message <span class="required">*</span></label>
+<textarea id="input" placeholder="For encryption: enter plain text. For decryption: paste base64-encoded encrypted text." aria-required="true" aria-describedby="input-help"></textarea>
+<small id="input-help" class="helper-text">For encryption: enter your message. For decryption: paste the text you received.</small>
 
 <div class="button-group">
-<button onclick="encryptMessage()">Encrypt</button>
-<button onclick="decryptMessage()">Decrypt</button>
+<button type="button" onclick="encryptMessage()" aria-label="Encrypt the message">Encrypt</button>
+<button type="button" onclick="decryptMessage()" aria-label="Decrypt the message">Decrypt</button>
 </div>
 
 <label class="label" for="output">Result</label>
-<textarea id="output" placeholder="Result will appear here..." readonly></textarea>
+<div class="output-wrapper">
+<textarea id="output" placeholder="Result will appear here..." readonly aria-describedby="output-help"></textarea>
+<button type="button" id="copy-btn" class="copy-btn" onclick="copyToClipboard()" aria-label="Copy result to clipboard" disabled>
+<span id="copy-text">📋 Copy</span>
+</button>
+</div>
+<small id="output-help" class="helper-text">Save or share this text securely.</small>
+
+</fieldset>
+
+<div class="footer-info">
+<p><strong>Security Notice:</strong> Use at your own risk. Security depends on password strength. Forgotten passwords cannot be recovered. This tool is open-source and runs entirely offline in your browser.</p>
+<p class="transparency"><strong>Transparency:</strong> All source code is viewable in this HTML file. No external scripts are loaded. No data leaves your device.</p>
+</div>
+
 </div>
 
 <script>
@@ -40,6 +90,81 @@ function ab2b64(buf) {
 }
 function b642ab(b64) {
     return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+
+// Toggle info section
+function toggleInfo() {
+    const content = document.getElementById('info-content');
+    const button = document.querySelector('.info-toggle');
+    const isHidden = content.hasAttribute('hidden');
+    
+    if (isHidden) {
+        content.removeAttribute('hidden');
+        button.setAttribute('aria-expanded', 'true');
+    } else {
+        content.setAttribute('hidden', '');
+        button.setAttribute('aria-expanded', 'false');
+    }
+}
+
+// Show alert message
+function showAlert(message, type = 'error') {
+    const alertBox = document.getElementById('alert-box');
+    alertBox.textContent = message;
+    alertBox.className = `alert-box alert-${type}`;
+    alertBox.removeAttribute('hidden');
+    
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            alertBox.setAttribute('hidden', '');
+        }, 5000);
+    }
+}
+
+// Hide alert
+function hideAlert() {
+    const alertBox = document.getElementById('alert-box');
+    alertBox.setAttribute('hidden', '');
+}
+
+// Validate password
+function validatePassword(password) {
+    if (!password) {
+        return { valid: false, message: 'Password is required.' };
+    }
+    if (password.length < 8) {
+        return { valid: false, message: 'Password must be at least 8 characters long.' };
+    }
+    return { valid: true };
+}
+
+// Track whether current output is an error
+let isOutputError = false;
+
+// Enable/disable copy button based on output
+function updateCopyButton() {
+    const output = document.getElementById('output').value;
+    const copyBtn = document.getElementById('copy-btn');
+    copyBtn.disabled = !output || isOutputError;
+}
+
+// Copy to clipboard
+async function copyToClipboard() {
+    const output = document.getElementById('output').value;
+    const copyText = document.getElementById('copy-text');
+    
+    try {
+        await navigator.clipboard.writeText(output);
+        copyText.textContent = '✓ Copied!';
+        showAlert('Copied to clipboard successfully!', 'success');
+        
+        setTimeout(() => {
+            copyText.textContent = ' Copy';
+        }, 2000);
+    } catch (err) {
+        showAlert('Failed to copy to clipboard. Please copy manually.', 'error');
+    }
 }
 
 // Derive a crypto key from password
@@ -67,37 +192,79 @@ async function getKey(password, salt) {
 
 // Encrypt message
 async function encryptMessage() {
+    hideAlert();
     const text = document.getElementById('input').value;
     const password = document.getElementById('password').value;
-    if (!text || !password) return alert("Enter both password and message!");
+    const output = document.getElementById('output');
+    
+    // Validation
+    if (!text) {
+        showAlert('Please enter a message to encrypt.', 'error');
+        return;
+    }
+    
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+        showAlert(passwordCheck.message, 'error');
+        return;
+    }
+    
+    try {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await getKey(password, salt);
 
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await getKey(password, salt);
+        const encrypted = await crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            str2ab(text)
+        );
 
-    const encrypted = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: iv },
-        key,
-        str2ab(text)
-    );
+        // Combine salt + iv + ciphertext
+        const combined = new Uint8Array(salt.byteLength + iv.byteLength + encrypted.byteLength);
+        combined.set(salt, 0);
+        combined.set(iv, salt.byteLength);
+        combined.set(new Uint8Array(encrypted), salt.byteLength + iv.byteLength);
 
-    // Combine salt + iv + ciphertext
-    const combined = new Uint8Array(salt.byteLength + iv.byteLength + encrypted.byteLength);
-    combined.set(salt, 0);
-    combined.set(iv, salt.byteLength);
-    combined.set(new Uint8Array(encrypted), salt.byteLength + iv.byteLength);
-
-    document.getElementById('output').value = ab2b64(combined);
+        output.value = ab2b64(combined);
+        isOutputError = false;
+        updateCopyButton();
+        showAlert('Message encrypted successfully!', 'success');
+    } catch (e) {
+        output.value = '';
+        isOutputError = true;
+        updateCopyButton();
+        showAlert('Encryption failed: ' + e.message, 'error');
+    }
 }
 
 // Decrypt message
 async function decryptMessage() {
+    hideAlert();
     const b64 = document.getElementById('input').value;
     const password = document.getElementById('password').value;
-    if (!b64 || !password) return alert("Enter both password and encrypted text!");
+    const output = document.getElementById('output');
+    
+    // Validation
+    if (!b64) {
+        showAlert('Please enter encrypted text to decrypt.', 'error');
+        return;
+    }
+    
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+        showAlert(passwordCheck.message, 'error');
+        return;
+    }
 
     try {
         const combined = b642ab(b64);
+        
+        // Validate data length
+        if (combined.length < 28) {
+            throw new Error('Invalid encrypted data: too short');
+        }
+        
         const salt = combined.slice(0, 16);
         const iv = combined.slice(16, 28);
         const data = combined.slice(28);
@@ -109,12 +276,40 @@ async function decryptMessage() {
             data
         );
 
-        document.getElementById('output').value = ab2str(decrypted);
+        output.value = ab2str(decrypted);
+        isOutputError = false;
+        updateCopyButton();
+        showAlert('Message decrypted successfully!', 'success');
     } catch (e) {
-        document.getElementById('output').value = "Decryption failed! Wrong password or corrupted data.";
+        output.value = '';
+        isOutputError = true;
+        updateCopyButton();
+        
+        // Provide specific error messages
+        if (e.message.includes('Invalid encrypted data')) {
+            showAlert('Decryption failed: The encrypted text appears to be corrupted or invalid.', 'error');
+        } else if (e.name === 'OperationError' || e.message.includes('operation')) {
+            showAlert('Decryption failed: Wrong password or corrupted data.', 'error');
+        } else if (e.message.includes('Invalid character')) {
+            showAlert('Decryption failed: The input is not valid base64-encoded text.', 'error');
+        } else {
+            showAlert('Decryption failed: ' + e.message, 'error');
+        }
     }
 }
+
+// Update copy button state when output changes
+document.addEventListener('DOMContentLoaded', function() {
+    const output = document.getElementById('output');
+    const observer = new MutationObserver(updateCopyButton);
+    observer.observe(output, { attributes: true, childList: true, characterData: true, subtree: true });
+    
+    // Also listen to value changes
+    output.addEventListener('input', updateCopyButton);
+});
 </script>
 
 </body>
 </html>
+
+
